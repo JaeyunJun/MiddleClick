@@ -16,8 +16,6 @@ extension Controller {
       return Unmanaged.passUnretained(event)
     }
     
-    guard !AppUtils.isIgnoredAppBundle() else { return Unmanaged.passUnretained(event) }
-    
     let returnedEvent = Unmanaged.passUnretained(event)
 
     let isMouseDown = type == .leftMouseDown || type == .rightMouseDown

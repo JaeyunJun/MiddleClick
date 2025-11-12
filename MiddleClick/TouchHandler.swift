@@ -1,5 +1,6 @@
 import MoreTouchCore
 import MultitouchSupport
+import QuartzCore
 
 @MainActor class TouchHandler {
   static let shared = TouchHandler()
@@ -36,15 +37,13 @@ import MultitouchSupport
     }
     
     // Finger count changed - check if we need to process
-    guard !AppUtils.isIgnoredAppBundle() else { return }
-
-    let state = GlobalState.shared
-
     // Early return if no relevant gestures are active
     guard threeFingerSwipe || fourFingerAction || nFingers >= fingersQua else {
       handler.lastFingerCount = nFingers
       return
     }
+
+    let state = GlobalState.shared
 
     // Update state when finger count changes
     handler.lastFingerCount = nFingers
@@ -71,8 +70,21 @@ import MultitouchSupport
     return
   }
 
+  // Throttle swipe processing to reduce CPU usage
+  private var lastSwipeCheckTime: TimeInterval = 0
+  private static let swipeCheckInterval: TimeInterval = 0.033 // ~30fps (더 낮은 CPU 사용)
+  
   private func processThreeFingerSwipe(data: UnsafePointer<MTTouch>?, nFingers: Int32) {
     guard let data = data else { return }
+    
+    // Throttle processing if already triggered
+    if threeFingerSwipeTriggered { return }
+    
+    let now = CACurrentMediaTime()
+    if !threeFingerSwipeStartPos.isZero && (now - lastSwipeCheckTime) < Self.swipeCheckInterval {
+      return
+    }
+    lastSwipeCheckTime = now
     
     var currentPos: SIMD2<Float> = .zero
     for touch in UnsafeBufferPointer(start: data, count: 3) {
@@ -83,7 +95,7 @@ import MultitouchSupport
     if threeFingerSwipeStartPos.isZero {
       threeFingerSwipeStartPos = currentPos
       threeFingerSwipeTriggered = false
-    } else if !threeFingerSwipeTriggered {
+    } else {
       // Check if swipe threshold is met
       let horizontalDelta = currentPos.x - threeFingerSwipeStartPos.x
       

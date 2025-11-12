@@ -21,6 +21,4 @@ final class Config: ConfigCore {
   /// In milliseconds
   @UserDefault(transformGet: { $0 / 1000 })
   var maxTimeDelta = 300.0
-
-  @UserDefault var ignoredAppBundles = Set<String>()
 }

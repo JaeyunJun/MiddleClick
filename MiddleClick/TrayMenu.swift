@@ -3,7 +3,7 @@ import AppKit
 
 @MainActor final class TrayMenu: NSObject {
   private let config = Config.shared
-  private var infoItem, accessibilityPermissionStatusItem, accessibilityPermissionActionItem, ignoredAppItem, launchAtLoginItem: NSMenuItem!
+  private var accessibilityPermissionStatusItem, accessibilityPermissionActionItem, launchAtLoginItem: NSMenuItem!
   private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
   var isStatusItemVisible: Bool {
     get { trayMenu.statusItem.isVisible }
@@ -22,11 +22,6 @@ import AppKit
   private func initSequence() {
     setupStatusItem()
     accessibilityMonitor.addListener(onChange: updateAccessibilityPermissionStatus)
-    config.$minimumFingers.onSet {_ in
-      DispatchQueue.main.async {
-        self.updateInfoItem()
-      }
-    }
   }
 
   #if DEBUG
@@ -41,29 +36,11 @@ import AppKit
     accessibilityPermissionActionItem.isHidden = hasAccessibilityPermission
   }
 
-  private func updateInfoItem() {
-    let fingersInfo = "Click with \(config.minimumFingers)\(config.allowMoreFingers ? "+" : "") Fingers"
-    infoItem.title = fingersInfo
-  }
-
   private func createMenu() -> NSMenu {
     let menu = NSMenu()
     menu.delegate = self
 
     createMenuAccessibilityPermissionItems(menu)
-
-    ignoredAppItem = menu
-      .addItem(
-        withTitle: "Ignore focused app",
-        action: #selector(ignoreApp),
-        target: self
-      )
-    menu.addSeparator()
-
-    infoItem = menu.addItem(withTitle: "")
-    updateInfoItem()
-
-    menu.addSeparator()
 
     launchAtLoginItem = menu.addItem(
       withTitle: "Launch at login",
@@ -272,23 +249,6 @@ extension TrayMenu {
 }
 
 extension TrayMenu: NSMenuDelegate {
-  func menuWillOpen(_ menu: NSMenu) {
-    updateIgnoredAppItem()
-  }
-
-  private func updateIgnoredAppItem() {
-    let focusedApp = AppUtils.getFocusedApp()
-    if let focusedAppName = focusedApp?.localizedName {
-      ignoredAppItem.title = "Ignore " + focusedAppName
-      ignoredAppItem.state = AppUtils.isIgnoredAppBundle(focusedApp) ? .on : .off
-    }
-  }
-
-  @objc private func ignoreApp() {
-    guard let focusedBundleID = AppUtils.getFocusedApp()?.bundleIdentifier else { return }
-
-    config.ignoredAppBundles.formSymmetricDifference([focusedBundleID])
-  }
 }
 
 extension NSMenu {
