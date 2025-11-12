@@ -20,11 +20,16 @@ import MultitouchSupport
   private static let allowMoreFingers = config.allowMoreFingers
   private static let maxDistanceDelta = config.maxDistanceDelta
   private static let maxTimeDelta = config.maxTimeDelta
+  private static let fourFingerAction = config.fourFingerAction
 
   private var maybeMiddleClick = false
+  private var maybeFourFingerAction = false
   private var touchStartTime: Date?
+  private var fourFingerTouchStartTime: Date?
   private var middleClickPos1: SIMD2<Float> = .zero
   private var middleClickPos2: SIMD2<Float> = .zero
+  private var fourFingerPos1: SIMD2<Float> = .zero
+  private var fourFingerPos2: SIMD2<Float> = .zero
 
   private let touchCallback: MTFrameCallbackFunction = {
     _, data, nFingers, _, _ in
@@ -34,6 +39,8 @@ import MultitouchSupport
 
     state.threeDown =
     allowMoreFingers ? nFingers >= fingersQua : nFingers == fingersQua
+    
+    state.fourDown = nFingers == 4
 
     let handler = TouchHandler.shared
 
@@ -41,9 +48,30 @@ import MultitouchSupport
 
     guard nFingers != 0 else {
       handler.handleTouchEnd()
+      handler.handleFourFingerTouchEnd()
       return
     }
 
+    // Handle 4-finger gesture
+    if nFingers == 4 && fourFingerAction {
+      let isFourFingerStart = handler.fourFingerTouchStartTime == nil
+      if isFourFingerStart {
+        handler.fourFingerTouchStartTime = Date()
+        handler.maybeFourFingerAction = true
+        handler.fourFingerPos1 = .zero
+      } else if handler.maybeFourFingerAction, let startTime = handler.fourFingerTouchStartTime {
+        let elapsedTime = -startTime.timeIntervalSinceNow
+        if elapsedTime > maxTimeDelta {
+          handler.maybeFourFingerAction = false
+        }
+      }
+      handler.processFourFingerTouches(data: data, nFingers: nFingers)
+      return
+    }
+    
+    // Handle 3-finger (or custom) middle click gesture
+    guard !(nFingers < fingersQua) else { return }
+    
     let isTouchStart = nFingers > 0 && handler.touchStartTime == nil
     if isTouchStart {
       handler.touchStartTime = Date()
@@ -56,8 +84,6 @@ import MultitouchSupport
         handler.maybeMiddleClick = false
       }
     }
-
-    guard !(nFingers < fingersQua) else { return }
 
     if !allowMoreFingers && nFingers > fingersQua {
       handler.resetMiddleClick()
@@ -96,9 +122,38 @@ import MultitouchSupport
     }
   }
 
+  private func processFourFingerTouches(data: UnsafePointer<MTTouch>?, nFingers: Int32) {
+    guard let data = data else { return }
+
+    if maybeFourFingerAction {
+      fourFingerPos1 = .zero
+    } else {
+      fourFingerPos2 = .zero
+    }
+
+    for touch in UnsafeBufferPointer(start: data, count: 4) {
+      let pos = SIMD2(touch.normalizedVector.position)
+      if maybeFourFingerAction {
+        fourFingerPos1 += pos
+      } else {
+        fourFingerPos2 += pos
+      }
+    }
+
+    if maybeFourFingerAction {
+      fourFingerPos2 = fourFingerPos1
+      maybeFourFingerAction = false
+    }
+  }
+
   private func resetMiddleClick() {
     maybeMiddleClick = false
     middleClickPos1 = .zero
+  }
+  
+  private func resetFourFingerAction() {
+    maybeFourFingerAction = false
+    fourFingerPos1 = .zero
   }
 
   private func handleTouchEnd() {
@@ -114,6 +169,20 @@ import MultitouchSupport
       Self.emulateMiddleClick()
     }
   }
+  
+  private func handleFourFingerTouchEnd() {
+    guard let startTime = fourFingerTouchStartTime else { return }
+
+    let elapsedTime = -startTime.timeIntervalSinceNow
+    fourFingerTouchStartTime = nil
+
+    guard fourFingerPos1.isNonZero && elapsedTime <= Self.maxTimeDelta else { return }
+
+    let delta = fourFingerPos1.delta(to: fourFingerPos2)
+    if delta < Self.maxDistanceDelta {
+      Self.emulateCommandW()
+    }
+  }
 
   private static func emulateMiddleClick() {
     // get the current pointer location
@@ -122,6 +191,22 @@ import MultitouchSupport
 
     postMouseEvent(type: .otherMouseDown, button: buttonType, location: location)
     postMouseEvent(type: .otherMouseUp, button: buttonType, location: location)
+  }
+  
+  private static func emulateCommandW() {
+    // Create Command+W key event
+    let keyCode: CGKeyCode = 13 // W key
+    
+    // Key down with Command
+    if let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true) {
+      keyDownEvent.flags = .maskCommand
+      keyDownEvent.post(tap: .cghidEventTap)
+    }
+    
+    // Key up
+    if let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) {
+      keyUpEvent.post(tap: .cghidEventTap)
+    }
   }
 
   private func shouldPreventEmulation() -> Bool {

@@ -9,6 +9,8 @@ final class Config: ConfigCore {
   var minimumFingers = 3
 
   @UserDefault var allowMoreFingers = false
+  
+  @UserDefault var fourFingerAction = true  // true: Command+W, false: disabled
 
   @UserDefault var maxDistanceDelta: Float = 0.05
 

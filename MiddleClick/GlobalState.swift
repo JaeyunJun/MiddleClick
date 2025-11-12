@@ -11,6 +11,7 @@ final class GlobalState {
 
   var threeDown = false
   var wasThreeDown = false
+  var fourDown = false
   var naturalMiddleClickLastTime: Date?
   /// stored locally, since accessing the cache is more CPU-expensive than a local variable
   var ignoredAppBundlesCache = Config.shared.ignoredAppBundles
