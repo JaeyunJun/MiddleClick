@@ -24,10 +24,18 @@ import MultitouchSupport
 
   private let touchCallback: MTFrameCallbackFunction = {
     _, data, nFingers, _, _ in
-    // Early return if no fingers and no state change
     let handler = TouchHandler.shared
-    if nFingers == 0 && handler.lastFingerCount == 0 { return }
     
+    // Early return if finger count hasn't changed and no active gesture
+    if nFingers == handler.lastFingerCount {
+      // Only process swipe if we're already tracking it
+      if threeFingerSwipe && nFingers == 3 && !handler.threeFingerSwipeStartPos.isZero {
+        handler.processThreeFingerSwipe(data: data, nFingers: nFingers)
+      }
+      return
+    }
+    
+    // Finger count changed - check if we need to process
     guard !AppUtils.isIgnoredAppBundle() else { return }
 
     let state = GlobalState.shared
@@ -38,14 +46,17 @@ import MultitouchSupport
       return
     }
 
-    // Only update state when finger count changes
-    if nFingers != handler.lastFingerCount {
-      // 3-finger middle click: only exactly 3 fingers (ignore allowMoreFingers to prevent conflicts)
+    // Update state when finger count changes
+    handler.lastFingerCount = nFingers
+    
+    // 3-finger middle click: only exactly 3 fingers (ignore allowMoreFingers to prevent conflicts)
+    if nFingers == fingersQua || nFingers == 0 {
       state.threeDown = nFingers == fingersQua
-      
-      // 4-finger action: only when exactly 4 fingers
+    }
+    
+    // 4-finger action: only when exactly 4 fingers
+    if fourFingerAction && (nFingers == 4 || nFingers == 0) {
       state.fourDown = nFingers == 4
-      handler.lastFingerCount = nFingers
     }
 
     // Handle 3-finger swipe gesture
