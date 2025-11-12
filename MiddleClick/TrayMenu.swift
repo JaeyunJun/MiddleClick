@@ -3,7 +3,7 @@ import AppKit
 
 @MainActor final class TrayMenu: NSObject {
   private let config = Config.shared
-  private var infoItem, tapToClickItem, accessibilityPermissionStatusItem, accessibilityPermissionActionItem, ignoredAppItem, launchAtLoginItem: NSMenuItem!
+  private var infoItem, accessibilityPermissionStatusItem, accessibilityPermissionActionItem, ignoredAppItem, launchAtLoginItem: NSMenuItem!
   private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
   var isStatusItemVisible: Bool {
     get { trayMenu.statusItem.isVisible }
@@ -24,7 +24,7 @@ import AppKit
     accessibilityMonitor.addListener(onChange: updateAccessibilityPermissionStatus)
     config.$minimumFingers.onSet {_ in
       DispatchQueue.main.async {
-        self.updateTapToClickStatus()
+        self.updateInfoItem()
       }
     }
   }
@@ -41,13 +41,9 @@ import AppKit
     accessibilityPermissionActionItem.isHidden = hasAccessibilityPermission
   }
 
-  private func updateTapToClickStatus() {
-    let tapToClick = config.tapToClick
-    let clickModeInfo = "Click" + (tapToClick ? " or Tap" : "")
-    let fingersInfo = " with \(config.minimumFingers)\(config.allowMoreFingers ? "+" : "") Fingers"
-
-    infoItem.title = clickModeInfo + fingersInfo
-    tapToClickItem.state = tapToClick ? .on : .off
+  private func updateInfoItem() {
+    let fingersInfo = "Click with \(config.minimumFingers)\(config.allowMoreFingers ? "+" : "") Fingers"
+    infoItem.title = fingersInfo
   }
 
   private func createMenu() -> NSMenu {
@@ -65,16 +61,7 @@ import AppKit
     menu.addSeparator()
 
     infoItem = menu.addItem(withTitle: "")
-
-    tapToClickItem = menu.addItem(
-      withTitle: "Tap to click", action: #selector(toggleTapToClick), target: self)
-
-    let resetItem = menu.addItem(
-      withTitle: "Reset to System Settings", action: #selector(resetTapToClick), target: self)
-    resetItem.isAlternate = true
-    resetItem.keyEquivalentModifierMask = .option
-
-    updateTapToClickStatus()
+    updateInfoItem()
 
     menu.addSeparator()
 
@@ -180,16 +167,6 @@ extension TrayMenu {
         script.executeAndReturnError(nil)
       }
     }
-  }
-
-  @objc private func toggleTapToClick(sender: NSButton) {
-    config.tapToClick = sender.state == .off
-    updateTapToClickStatus()
-  }
-
-  @objc private func resetTapToClick() {
-    config.$tapToClick.delete()
-    updateTapToClickStatus()
   }
 
   @objc private func actionQuit(sender: Any) {

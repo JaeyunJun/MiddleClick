@@ -11,48 +11,57 @@ extension Controller {
     _, type, event, _ in
 
     let returnedEvent = Unmanaged.passUnretained(event)
+    
+    // Early return for irrelevant event types
+    guard type == .leftMouseDown || type == .rightMouseDown || 
+          type == .leftMouseUp || type == .rightMouseUp else {
+      return returnedEvent
+    }
+    
     guard !AppUtils.isIgnoredAppBundle() else { return returnedEvent }
 
+    let isMouseDown = type == .leftMouseDown || type == .rightMouseDown
+    let isMouseUp = type == .leftMouseUp || type == .rightMouseUp
+
     // Handle 3-finger click
-    if state.threeDown && (type == .leftMouseDown || type == .rightMouseDown) {
+    if state.threeDown && isMouseDown {
       state.wasThreeDown = true
       state.threeDown = false
-      state.naturalMiddleClickLastTime = Date()
       event.type = .otherMouseDown
-
       event.setIntegerValueField(.mouseEventButtonNumber, value: kCGMouseButtonCenter)
     }
 
-    if state.wasThreeDown && (type == .leftMouseUp || type == .rightMouseUp) {
+    if state.wasThreeDown && isMouseUp {
       state.wasThreeDown = false
       event.type = .otherMouseUp
-
       event.setIntegerValueField(.mouseEventButtonNumber, value: kCGMouseButtonCenter)
     }
 
     // Handle 4-finger click
-    if config.fourFingerAction && state.fourDown && (type == .leftMouseDown || type == .rightMouseDown) {
-      state.wasFourDown = true
-      state.fourDown = false
-      
-      // Emulate Command+W
-      let keyCode: CGKeyCode = 13 // W key
-      if let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true) {
-        keyDownEvent.flags = .maskCommand
-        keyDownEvent.post(tap: .cghidEventTap)
+    if config.fourFingerAction {
+      if state.fourDown && isMouseDown {
+        state.wasFourDown = true
+        state.fourDown = false
+        
+        // Emulate Command+W
+        let keyCode: CGKeyCode = 13 // W key
+        if let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true) {
+          keyDownEvent.flags = .maskCommand
+          keyDownEvent.post(tap: .cghidEventTap)
+        }
+        if let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) {
+          keyUpEvent.post(tap: .cghidEventTap)
+        }
+        
+        // Suppress the original click
+        return nil
       }
-      if let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) {
-        keyUpEvent.post(tap: .cghidEventTap)
-      }
-      
-      // Suppress the original click
-      return nil
-    }
 
-    if state.wasFourDown && (type == .leftMouseUp || type == .rightMouseUp) {
-      state.wasFourDown = false
-      // Suppress the original click
-      return nil
+      if state.wasFourDown && isMouseUp {
+        state.wasFourDown = false
+        // Suppress the original click
+        return nil
+      }
     }
 
     return returnedEvent

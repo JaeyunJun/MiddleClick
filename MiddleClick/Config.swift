@@ -22,7 +22,5 @@ final class Config: ConfigCore {
   @UserDefault(transformGet: { $0 / 1000 })
   var maxTimeDelta = 300.0
 
-  @UserDefault var tapToClick = SystemPermissions.getIsSystemTapToClickEnabled
-
   @UserDefault var ignoredAppBundles = Set<String>()
 }
