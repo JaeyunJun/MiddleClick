@@ -52,7 +52,7 @@ import MultitouchSupport
       return
     }
 
-    // Handle 4-finger gesture
+    // Handle 4-finger tap gesture
     if nFingers == 4 && fourFingerAction {
       let isFourFingerStart = handler.fourFingerTouchStartTime == nil
       if isFourFingerStart {
