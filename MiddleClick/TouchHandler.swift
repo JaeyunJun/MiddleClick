@@ -21,6 +21,8 @@ import MultitouchSupport
   private static let maxDistanceDelta = config.maxDistanceDelta
   private static let maxTimeDelta = config.maxTimeDelta
   private static let fourFingerAction = config.fourFingerAction
+  private static let threeFingerSwipe = config.threeFingerSwipe
+  private static let swipeThreshold = config.swipeThreshold
 
   private var maybeMiddleClick = false
   private var maybeFourFingerAction = false
@@ -30,6 +32,10 @@ import MultitouchSupport
   private var middleClickPos2: SIMD2<Float> = .zero
   private var fourFingerPos1: SIMD2<Float> = .zero
   private var fourFingerPos2: SIMD2<Float> = .zero
+  private var threeFingerSwipeStartPos: SIMD2<Float> = .zero
+  private var threeFingerSwipeEndPos: SIMD2<Float> = .zero
+  private var threeFingerSwipeStartTime: Date?
+  private var threeFingerSwipeTriggered = false
 
   private let touchCallback: MTFrameCallbackFunction = {
     _, data, nFingers, _, _ in
@@ -43,6 +49,13 @@ import MultitouchSupport
     state.fourDown = nFingers == 4
 
     let handler = TouchHandler.shared
+
+    // Handle 3-finger swipe gesture (independent of tap-to-click)
+    if nFingers == 3 && threeFingerSwipe {
+      handler.processThreeFingerSwipe(data: data, nFingers: nFingers)
+    } else if nFingers == 0 {
+      handler.handleThreeFingerSwipeEnd()
+    }
 
     guard handler.tapToClick else { return }
 
@@ -155,6 +168,45 @@ import MultitouchSupport
     maybeFourFingerAction = false
     fourFingerPos1 = .zero
   }
+  
+  private func processThreeFingerSwipe(data: UnsafePointer<MTTouch>?, nFingers: Int32) {
+    guard let data = data else { return }
+    
+    var currentPos: SIMD2<Float> = .zero
+    for touch in UnsafeBufferPointer(start: data, count: 3) {
+      currentPos += SIMD2(touch.normalizedVector.position)
+    }
+    currentPos /= 3.0 // Average position
+    
+    if threeFingerSwipeStartTime == nil {
+      threeFingerSwipeStartPos = currentPos
+      threeFingerSwipeStartTime = Date()
+      threeFingerSwipeTriggered = false
+    } else if !threeFingerSwipeTriggered {
+      threeFingerSwipeEndPos = currentPos
+      
+      // Check if swipe threshold is met
+      let horizontalDelta = threeFingerSwipeEndPos.x - threeFingerSwipeStartPos.x
+      
+      if abs(horizontalDelta) > Self.swipeThreshold {
+        // Trigger immediately
+        if horizontalDelta > 0 {
+          Self.emulateMouseButton(3) // Left to right: Mouse 4
+        } else {
+          Self.emulateMouseButton(4) // Right to left: Mouse 5
+        }
+        threeFingerSwipeTriggered = true
+      }
+    }
+  }
+  
+  private func handleThreeFingerSwipeEnd() {
+    // Reset state when fingers are lifted
+    threeFingerSwipeStartTime = nil
+    threeFingerSwipeStartPos = .zero
+    threeFingerSwipeEndPos = .zero
+    threeFingerSwipeTriggered = false
+  }
 
   private func handleTouchEnd() {
     guard let startTime = touchStartTime else { return }
@@ -206,6 +258,31 @@ import MultitouchSupport
     // Key up
     if let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) {
       keyUpEvent.post(tap: .cghidEventTap)
+    }
+  }
+  
+  private static func emulateMouseButton(_ buttonNumber: Int64) {
+    let location = CGEvent(source: nil)?.location ?? .zero
+    
+    // Create mouse button event
+    if let mouseDown = CGEvent(
+      mouseEventSource: nil,
+      mouseType: .otherMouseDown,
+      mouseCursorPosition: location,
+      mouseButton: .center
+    ) {
+      mouseDown.setIntegerValueField(.mouseEventButtonNumber, value: buttonNumber)
+      mouseDown.post(tap: .cghidEventTap)
+    }
+    
+    if let mouseUp = CGEvent(
+      mouseEventSource: nil,
+      mouseType: .otherMouseUp,
+      mouseCursorPosition: location,
+      mouseButton: .center
+    ) {
+      mouseUp.setIntegerValueField(.mouseEventButtonNumber, value: buttonNumber)
+      mouseUp.post(tap: .cghidEventTap)
     }
   }
 

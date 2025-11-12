@@ -11,6 +11,10 @@ final class Config: ConfigCore {
   @UserDefault var allowMoreFingers = false
   
   @UserDefault var fourFingerAction = true  // true: Command+W, false: disabled
+  
+  @UserDefault var threeFingerSwipe = true  // true: Mouse 4/5 buttons, false: disabled
+  
+  @UserDefault var swipeThreshold: Float = 0.15  // Minimum horizontal distance for swipe detection
 
   @UserDefault var maxDistanceDelta: Float = 0.05
 
