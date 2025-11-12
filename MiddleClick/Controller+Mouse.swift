@@ -1,18 +1,37 @@
 import CoreGraphics
 import Foundation
 import CoreFoundation
+import QuartzCore
 
 extension Controller {
   private static let state = GlobalState.shared
   private static let kCGMouseButtonCenter = Int64(CGMouseButton.center.rawValue)
   private static let config = Config.shared
 
+  // Track event counts for debugging
+  private static var eventCount: Int = 0
+  private static var lastLogTime: TimeInterval = 0
+  
   static let mouseEventHandler = CGEventController {
     _, type, event, _ in
     
-    // Early return for irrelevant event types
-    guard type == .leftMouseDown || type == .rightMouseDown || 
-          type == .leftMouseUp || type == .rightMouseUp else {
+    // Debug: Log event types periodically
+    #if DEBUG
+    eventCount += 1
+    let now = CACurrentMediaTime()
+    if now - lastLogTime > 5.0 {
+      log.debug("Received \(eventCount) events in 5s, last type: \(type.rawValue)")
+      eventCount = 0
+      lastLogTime = now
+    }
+    #endif
+    
+    // Fast path: only process click events
+    // Using switch for better performance than multiple comparisons
+    switch type {
+    case .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp:
+      break
+    default:
       return Unmanaged.passUnretained(event)
     }
     

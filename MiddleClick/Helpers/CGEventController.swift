@@ -21,13 +21,17 @@ class CGEventController {
     // Ensure any previous state is cleaned up before creating a new one
     stop()
 
+    // Create event mask for only the events we care about
+    let eventMask: CGEventMask = (1 << CGEventType.leftMouseDown.rawValue) |
+                                   (1 << CGEventType.leftMouseUp.rawValue) |
+                                   (1 << CGEventType.rightMouseDown.rawValue) |
+                                   (1 << CGEventType.rightMouseUp.rawValue)
+    
     guard let tap = CGEvent.tapCreate(
       tap: .cghidEventTap,
       place: .headInsertEventTap,
       options: .defaultTap,
-      eventsOfInterest: .from(
-        .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp
-      ),
+      eventsOfInterest: eventMask,
       callback: callback,
       userInfo: nil
     ) else {
